@@ -18,37 +18,58 @@ function fmt(n: number, prefix = '$') {
 }
 
 export default function AcumuladosPage() {
-  const [desde,    setDesde]    = useState('')
-  const [hasta,    setHasta]    = useState('')
-  const [categoria, setCat]     = useState('todas')
-  const [tipo,     setTipo]     = useState('todos')
-  const [rows,     setRows]     = useState<Row[]>([])
-  const [totales,  setTotales]  = useState<Totales | null>(null)
-  const [loading,  setLoading]  = useState(false)
-  const [reiniciando, setRein]  = useState(false)
-  const [confirm,  setConfirm]  = useState(0)
+  const [desde,     setDesde]    = useState('')
+  const [hasta,     setHasta]    = useState('')
+  const [categoria, setCat]      = useState('')
+  const [tipo,      setTipo]     = useState('')
+  const [rows,      setRows]     = useState<Row[]>([])
+  const [totales,   setTotales]  = useState<Totales | null>(null)
+  const [loading,   setLoading]  = useState(false)
+  const [error,     setError]    = useState('')
+  const [reiniciando, setRein]   = useState(false)
+  const [confirm,   setConfirm]  = useState(0)
 
   async function buscar() {
     setLoading(true)
-    const params = new URLSearchParams()
-    if (desde)    params.set('desde', desde)
-    if (hasta)    params.set('hasta', hasta)
-    if (categoria !== 'todas') params.set('categoria', categoria)
-    if (tipo !== 'todos')      params.set('tipo', tipo)
+    setError('')
+    try {
+      const params = new URLSearchParams()
+      if (desde) params.set('desde', desde)
+      if (hasta) params.set('hasta', hasta)
+      if (categoria) params.set('categoria', categoria)
+      if (tipo)      params.set('tipo', tipo)
 
-    const res  = await fetch(`/api/acumulados?${params}`)
-    const data = await res.json()
-    setRows(data.rows ?? [])
-    setTotales(data.totales ?? null)
-    setLoading(false)
+      const res  = await fetch(`/api/acumulados?${params}`)
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error ?? `Error ${res.status}`)
+        setRows([])
+        setTotales(null)
+      } else {
+        setRows(data.rows ?? [])
+        setTotales(data.totales ?? null)
+      }
+    } catch (e: any) {
+      setError('No se pudo conectar con el servidor: ' + e.message)
+      setRows([])
+      setTotales(null)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function reiniciar() {
     if (confirm < 1) { setConfirm(1); return }
     setRein(true)
-    await fetch('/api/reiniciar', { method: 'DELETE' })
-    setRows([]); setTotales(null); setConfirm(0); setRein(false)
-    alert('Historial eliminado correctamente.')
+    try {
+      await fetch('/api/reiniciar', { method: 'DELETE' })
+      setRows([]); setTotales(null); setConfirm(0)
+      alert('Historial eliminado correctamente.')
+    } catch {
+      alert('Error al reiniciar.')
+    }
+    setRein(false)
   }
 
   const participacion = totales && totales.costo_bodega !== 0
@@ -61,16 +82,11 @@ export default function AcumuladosPage() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700 }}>📊 Informe Acumulados</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 700 }}>?? Informe Acumulados</h1>
           <p style={{ color: 'var(--text2)', fontSize: 13, marginTop: 2 }}>Historial consolidado de todos los conteos</p>
         </div>
-        <button
-          onClick={reiniciar}
-          disabled={reiniciando}
-          className="btn btn-danger"
-          style={{ fontSize: 12 }}
-        >
-          {confirm === 1 ? '⚠️ Confirmar borrado total' : '🗑️ Reiniciar historial'}
+        <button onClick={reiniciar} disabled={reiniciando} className="btn btn-danger" style={{ fontSize: 12 }}>
+          {confirm === 1 ? '?? Confirmar borrado total' : '??? Reiniciar historial'}
         </button>
       </div>
 
@@ -97,58 +113,52 @@ export default function AcumuladosPage() {
             style={{ padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', width: 130 }} />
         </div>
         <button onClick={buscar} className="btn btn-primary" disabled={loading}>
-          {loading ? 'Buscando...' : '🔍 Buscar'}
+          {loading ? '? Buscando...' : '?? Buscar'}
         </button>
       </div>
 
+      {/* Error */}
+      {error && (
+        <div style={{
+          padding: '12px 16px', borderRadius: 6,
+          background: 'rgba(248,81,73,0.1)', border: '1px solid var(--danger)',
+          color: 'var(--danger)', fontSize: 13
+        }}>
+          ? {error}
+        </div>
+      )}
+
       {/* Totales */}
       {totales && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-          <div className="stat-card">
-            <div className="stat-label">Registros</div>
-            <div className="stat-value">{rows.length}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Costo Bodega</div>
-            <div className="stat-value" style={{ fontSize: 16 }}>{fmt(totales.costo_bodega)}</div>
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          <div className="stat-card"><div className="stat-label">Registros</div><div className="stat-value">{rows.length}</div></div>
+          <div className="stat-card"><div className="stat-label">Costo Bodega</div><div className="stat-value" style={{ fontSize: 15 }}>{fmt(totales.costo_bodega)}</div></div>
           <div className="stat-card">
             <div className="stat-label">Costo Diferencia</div>
-            <div className="stat-value" style={{ fontSize: 16, color: totales.costo_diferencia < 0 ? 'var(--danger)' : 'var(--accent)' }}>
+            <div className="stat-value" style={{ fontSize: 15, color: totales.costo_diferencia < 0 ? 'var(--danger)' : 'var(--accent)' }}>
               {fmt(totales.costo_diferencia)}
             </div>
           </div>
-          <div className="stat-card">
-            <div className="stat-label">Participación</div>
-            <div className="stat-value" style={{ color: 'var(--warn)' }}>{participacion}</div>
-          </div>
+          <div className="stat-card"><div className="stat-label">Participación</div><div className="stat-value" style={{ color: 'var(--warn)' }}>{participacion}</div></div>
         </div>
       )}
 
       {/* Tabla */}
       <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
-        {rows.length === 0 ? (
+        {loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>? Buscando datos...</div>
+        ) : rows.length === 0 && !error ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>
-            {loading ? 'Cargando...' : 'Usa los filtros y presiona Buscar para ver los datos.'}
+            Usa los filtros y presiona <strong>Buscar</strong> para ver los datos.
           </div>
         ) : (
           <table className="inv-table">
             <thead>
               <tr>
-                <th>Fecha</th>
-                <th>Referencia</th>
-                <th>Descripción</th>
-                <th>Localiz.</th>
-                <th>U.M</th>
-                <th>Categoría</th>
-                <th>Tipo</th>
-                <th>Cant. Sistema</th>
-                <th>Conteo Físico</th>
-                <th>Diferencia</th>
-                <th>Costo Unit.</th>
-                <th>Costo Dif.</th>
-                <th>Costo Bodega</th>
-                <th>Observaciones</th>
+                <th>Fecha</th><th>Referencia</th><th>Descripción</th>
+                <th>Loc.</th><th>U.M</th><th>Categoría</th><th>Tipo</th>
+                <th>Cant. Sistema</th><th>Conteo Físico</th><th>Diferencia</th>
+                <th>Costo Unit.</th><th>Costo Dif.</th><th>Costo Bodega</th><th>Observaciones</th>
               </tr>
             </thead>
             <tbody>
@@ -157,8 +167,7 @@ export default function AcumuladosPage() {
                   <td>{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-CO')}</td>
                   <td><span className="mono" style={{ fontSize: 12 }}>{r.referencia}</span></td>
                   <td style={{ maxWidth: 200 }}>{r.descripcion}</td>
-                  <td>{r.localizacion}</td>
-                  <td>{r.um}</td>
+                  <td>{r.localizacion}</td><td>{r.um}</td>
                   <td style={{ fontSize: 11, color: 'var(--text2)' }}>{r.categoria}</td>
                   <td>{r.tipo}</td>
                   <td style={{ textAlign: 'right' }}>{Number(r.cantidad_sistema).toLocaleString('es-CO')}</td>
