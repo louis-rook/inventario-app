@@ -164,7 +164,7 @@ export default function AcumuladosPage() {
             <tbody>
               {rows.map((r, i) => (
                 <tr key={i}>
-                  <td>{new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-CO')}</td>
+                  <td>{new Date(String(r.fecha).substring(0, 10) + 'T12:00:00').toLocaleDateString('es-CO')}</td>
                   <td><span className="mono" style={{ fontSize: 12 }}>{r.referencia}</span></td>
                   <td style={{ maxWidth: 200 }}>{r.descripcion}</td>
                   <td>{r.localizacion}</td><td>{r.um}</td>
