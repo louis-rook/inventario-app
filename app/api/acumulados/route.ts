@@ -8,25 +8,29 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const fechaDesde = searchParams.get('desde')
-  const fechaHasta = searchParams.get('hasta')
-  const categoria  = searchParams.get('categoria')
-  const tipo       = searchParams.get('tipo')
+  const desde    = searchParams.get('desde')    || null
+  const hasta    = searchParams.get('hasta')    || null
+  const categoria = searchParams.get('categoria') || null
+  const tipo     = searchParams.get('tipo')     || null
 
-  let rows = await sql`
-    SELECT * FROM vista_acumulados
-    WHERE
-      (${fechaDesde}::date IS NULL OR fecha >= ${fechaDesde}::date)
-      AND (${fechaHasta}::date IS NULL OR fecha <= ${fechaHasta}::date)
-      AND (${categoria} IS NULL OR ${categoria} = 'todas' OR categoria ILIKE ${`%${categoria}%`})
-      AND (${tipo} IS NULL OR ${tipo} = 'todos' OR tipo ILIKE ${`%${tipo}%`})
-    ORDER BY fecha DESC, referencia
-  `
+  // Construir query dinámicamente según los filtros presentes
+  let rows: any[]
 
-  // Resumen totales
+  if (desde && hasta && categoria && tipo) {
+    rows = await sql`SELECT * FROM vista_acumulados WHERE fecha BETWEEN ${desde} AND ${hasta} AND categoria ILIKE ${`%${categoria}%`} AND tipo ILIKE ${`%${tipo}%`} ORDER BY fecha DESC, referencia`
+  } else if (desde && hasta && categoria) {
+    rows = await sql`SELECT * FROM vista_acumulados WHERE fecha BETWEEN ${desde} AND ${hasta} AND categoria ILIKE ${`%${categoria}%`} ORDER BY fecha DESC, referencia`
+  } else if (desde && hasta && tipo) {
+    rows = await sql`SELECT * FROM vista_acumulados WHERE fecha BETWEEN ${desde} AND ${hasta} AND tipo ILIKE ${`%${tipo}%`} ORDER BY fecha DESC, referencia`
+  } else if (desde && hasta) {
+    rows = await sql`SELECT * FROM vista_acumulados WHERE fecha BETWEEN ${desde} AND ${hasta} ORDER BY fecha DESC, referencia`
+  } else {
+    rows = await sql`SELECT * FROM vista_acumulados ORDER BY fecha DESC, referencia`
+  }
+
   const totales = {
-    costo_bodega:    rows.reduce((s: number, r: any) => s + Number(r.costo_bodega_total ?? 0), 0),
-    costo_diferencia: rows.reduce((s: number, r: any) => s + Number(r.costo_diferencia ?? 0), 0),
+    costo_bodega:     rows.reduce((s, r) => s + Number(r.costo_bodega_total  ?? 0), 0),
+    costo_diferencia: rows.reduce((s, r) => s + Number(r.costo_diferencia    ?? 0), 0),
   }
 
   return NextResponse.json({ rows, totales })
